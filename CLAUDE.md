@@ -21,7 +21,10 @@ shipping no CA bundle.
 |---|---|
 | `monitor.py` | The whole thing: fetch, parse, filter, dedupe, notify, log |
 | `config.env` | `NTFY_TOPIC` + `MAX_PRICE`. chmod 600. Env vars of the same name override it |
-| `seen.json` | State: `{partNumber: price}` for items currently under the threshold |
+| `seen.json` | Local state: `{partNumber: price}` under the threshold (gitignored) |
+| `state/seen.json` | The same state for CI, tracked in git so runners can persist it |
+| `state/last-check` | Daily heartbeat; keeps the scheduled workflow from auto-disabling |
+| `.github/workflows/check.yml` | The 15-min schedule that actually runs |
 | `monitor.log` | One line per run (append-only) |
 | `test_monitor.py` | 12 self-checks, no pytest: `python3 test_monitor.py` |
 
@@ -87,23 +90,49 @@ python3 test_monitor.py            # self-check
 MAX_PRICE=2600 python3 monitor.py  # temporarily widen threshold to see it fire
 ```
 
-## Scheduling (cron, macOS)
+## Scheduling (GitHub Actions)
 
-Installed line — note the **absolute** python path, because cron's `PATH` is minimal:
+**The schedule runs on GitHub, not this Mac** — `.github/workflows/check.yml`,
+every 15 min plus manual `workflow_dispatch`. Nothing runs on a sleeping Mac;
+launchd only *catches up* on wake, so local scheduling can't satisfy "check while
+the lid is shut". The local crontab was removed: two schedulers with independent
+state would double-notify.
 
+Repo: https://github.com/AmroAbujabal/mbp-refurb-monitor (public, so Actions
+minutes are free and unlimited).
+
+```bash
+gh run list --limit 5                 # recent checks
+gh run view <id> --log                # what a run actually saw
+gh workflow run check.yml --ref main  # run one now
+gh secret set NTFY_TOPIC --body "..." # rotate the topic
+gh variable set MAX_PRICE --body 2400 # change threshold without a commit
 ```
-*/15 * * * * /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 /Users/amrabujabal/mbp-monitor/monitor.py >/dev/null 2>&1
-```
 
-- Install/edit: `crontab -e`  · Verify: `crontab -l`  · Remove: `crontab -r`
-- Output is sent to `/dev/null` because the script already logs to `monitor.log`;
-  without that, cron mails you locally every 15 minutes.
-- Verify it's alive: `tail -f monitor.log` and wait for the next :00/:15/:30/:45.
+### Why state lives in git
 
-**macOS caveat:** cron does not run while the Mac is asleep and does not catch up
-on missed runs. If you want misses to fire on wake, use a launchd agent with
-`StartInterval` instead — same command, `~/Library/LaunchAgents/`. Not set up;
-cron was what was asked for.
+Runners are ephemeral, so `seen.json` can't persist on disk. `STATE_FILE` is
+overridable via env; CI points it at the tracked `state/seen.json` and commits
+changes back (`permissions: contents: write`). Your local copy still uses the
+gitignored root `seen.json` — that's why `.gitignore` anchors it as `/seen.json`,
+so the `state/` one stays tracked.
+
+### The heartbeat is load-bearing
+
+`state/last-check` is stamped with the UTC date each run and committed when it
+changes — one commit per day. **GitHub disables scheduled workflows after 60 days
+of repository inactivity.** A monitor that correctly finds nothing for months
+would commit nothing and silently switch itself off. The heartbeat prevents that
+and doubles as an at-a-glance "is it alive" signal.
+
+### Caveats
+
+- GitHub's cron is best-effort and can drift 5-30 min under load. It is not a
+  precise 15-minute cadence.
+- A failed run emails you (default for the repo owner), which is the alerting
+  path for "the monitor broke" — there is no other.
+- `gh workflow run` can dispatch against a stale ref right after a push; pass
+  `--ref main` and check `gh run view <id> --json headSha` if a run looks wrong.
 
 ## Gotchas
 

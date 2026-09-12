@@ -10,7 +10,10 @@ log each check so I can tell it's alive.
 
 ## Current State
 
-**Working and scheduled.** Running every 15 min via cron.
+**Working and scheduled.** Running every 15 min on **GitHub Actions** —
+https://github.com/AmroAbujabal/mbp-refurb-monitor (public repo, free minutes).
+The local crontab was removed; nothing runs on a sleeping Mac, so the schedule
+moved off this machine entirely.
 
 - Live run verified against apple.com: 87 MacBook Pros parsed, cheapest **$2,379**.
 - **Nothing is under $1900 right now** — the cheapest MacBook Pro on the CA refurb
@@ -42,7 +45,8 @@ log each check so I can tell it's alive.
    State is written only after a successful push.
 5. Structure changes (missing marker, unparseable JSON, zero products, zero
    MacBook Pros) log `ERROR` and exit 1 rather than looking like "no deals".
-6. Installed crontab entry at `*/15` with an absolute python path.
+6. Installed a crontab entry at `*/15`, then **removed it** in favour of GitHub
+   Actions (see 9) so checks continue while the Mac sleeps.
 7. Acted on a code review (6 findings, all real, all fixed):
    - blanket `except Exception` so no run can die unlogged under `cron >/dev/null`
    - unparseable price now logs `WARN` instead of dropping the listing silently
@@ -82,14 +86,24 @@ log each check so I can tell it's alive.
   runs in the window caught the `20:45:01` tick writing to `monitor.log`
 - ✅ SSL: python.org Python had no CA bundle → script now uses `certifi` if importable
 
+9. Moved scheduling to GitHub Actions (`.github/workflows/check.yml`):
+   `STATE_FILE` env override so CI state lives in the tracked `state/seen.json`;
+   daily heartbeat commit so the workflow isn't auto-disabled after 60 days of
+   inactivity; `NTFY_TOPIC` as a GitHub secret.
+10. **Rotated the ntfy topic.** The old one was written into `HANDOFF.md` and
+   pushed to a public repo. Rotated, scrubbed from history via `filter-branch`
+   + force-push, and the docs now point at `config.env` instead of quoting it.
+   **You must re-subscribe to the new topic.**
+
 ## Not Tested / Known Gaps
 
+- GitHub's cron drift over days/weeks is unmeasured; only manual dispatches and
+  the first scheduled runs have been observed.
 - **A real sub-$1900 listing has never been seen**, because none exists today. The
   path is proven only via a raised threshold.
 - Apple's anti-bot behaviour over days/weeks at a 15-min cadence is unknown. If
   fetches start failing, `monitor.log` will show `ERROR fetch failed` lines.
-- cron does not fire while the Mac is asleep and does not catch up. A closed
-  laptop = no checks. launchd `StartInterval` would fix this; not set up.
+- ~~cron doesn't fire while asleep~~ — solved by moving to GitHub Actions.
 - No alerting if the monitor itself dies — you'd have to notice `monitor.log`
   going stale or filling with `ERROR`.
 - `monitor.log` grows unbounded (~100 bytes/run ≈ 3.5 MB/year). Not rotated.
@@ -112,6 +126,6 @@ log each check so I can tell it's alive.
 2. Optional: raise `MAX_PRICE` in `config.env` — at $1900 you may wait months.
    $2,400 would catch today's cheapest.
 3. Optional: switch cron → launchd if you want checks to survive sleep.
-4. The repo is `git init`'d with everything staged but **not committed** — your
+4. ~~The repo is `git init`'d but not committed~~ — done, pushed to GitHub. — your
    CLAUDE.md wants `/karpathy-check` to run on a staged diff before a commit.
 5. Check `grep ERROR monitor.log` occasionally to confirm it isn't blind.
