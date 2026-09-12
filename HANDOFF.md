@@ -16,7 +16,9 @@ log each check so I can tell it's alive.
 - **Nothing is under $1900 right now** — the cheapest MacBook Pro on the CA refurb
   store is a 14" M5 at $2,379. Expect `matches=0` and no pushes until the M1/M2
   stock comes back or prices drop. This is correct behaviour, not a broken monitor.
-- ntfy topic: `<see config.env>` (in `config.env`, chmod 600).
+- ntfy topic: see `config.env` (chmod 600, gitignored). **Never copy it into a
+  tracked file** — this repo is public. It is also stored as the `NTFY_TOPIC`
+  GitHub Actions secret.
   **Subscribe on your phone before you rely on this** — see Next steps.
 
 ## Active Files
@@ -104,9 +106,9 @@ log each check so I can tell it's alive.
 
 ## Next steps
 
-1. **Subscribe to the topic** — install the ntfy app (iOS/Android) and add
-   `<see config.env>`, or open https://ntfy.sh/<see config.env>.
-   Until you do, alerts go nowhere you'll see.
+1. **Subscribe to the topic** — install the ntfy app (iOS/Android) and add the
+   topic from `config.env` (`grep NTFY_TOPIC config.env`). Until you do, alerts
+   go nowhere you'll see.
 2. Optional: raise `MAX_PRICE` in `config.env` — at $1900 you may wait months.
    $2,400 would catch today's cheapest.
 3. Optional: switch cron → launchd if you want checks to survive sleep.

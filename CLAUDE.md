@@ -109,6 +109,10 @@ cron was what was asked for.
 
 - `config.env` tolerates `KEY=value # comment` and `KEY="quoted"`. It is read
   before the logging try/except, so a malformed value is a loud `SystemExit`.
+- **This repo is public.** The topic must exist in exactly two places: `config.env`
+  (local, gitignored) and the `NTFY_TOPIC` GitHub Actions secret. Never in a
+  tracked file, a doc, or a log. It leaked into HANDOFF.md once and had to be
+  rotated.
 - `config.env` holds the ntfy topic — anyone who knows the topic string can read
   the notifications. It's chmod 600 and should never be committed.
 - ntfy topics are public-by-obscurity. That's fine for refurb prices; don't put
