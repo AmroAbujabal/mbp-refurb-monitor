@@ -1,5 +1,5 @@
 # holds the ntfy topic - anyone with it can read your notifications
 config.env
-seen.json
-monitor.log
+/seen.json
+/monitor.log
 __pycache__/

@@ -1,0 +1,46 @@
+name: Check refurb store
+
+on:
+  schedule:
+    # Every 15 min. GitHub's scheduler is best-effort and can drift under load.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+# Needed to commit state back: ephemeral runners have no memory between runs.
+permissions:
+  contents: write
+
+# Two overlapping runs would both see the same state and double-notify.
+concurrency:
+  group: refurb-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for MacBook Pros under the threshold
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          MAX_PRICE: ${{ vars.MAX_PRICE || '1900' }}
+          STATE_FILE: state/seen.json
+        run: python3 monitor.py
+
+      - name: Persist state and heartbeat
+        run: |
+          # The heartbeat is load-bearing, not decoration: GitHub disables scheduled
+          # workflows after 60 days of repo inactivity, and a monitor that correctly
+          # finds nothing for months would otherwise commit nothing and switch itself
+          # off. Dating it to the day means one commit/day, not one per run.
+          date -u +%F > state/last-check
+          if git diff --quiet state/; then
+            echo "no state change, nothing to commit"
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/
+            git commit -m "state: refurb check $(date -u +%F) [skip ci]"
+            git push
+          fi

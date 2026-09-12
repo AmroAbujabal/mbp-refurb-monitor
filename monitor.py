@@ -18,7 +18,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CONFIG_FILE = HERE / "config.env"
-STATE_FILE = HERE / "seen.json"
+# CI overrides this to a git-tracked path so dedupe survives ephemeral runners.
+STATE_FILE = Path(os.environ.get("STATE_FILE") or HERE / "seen.json")
 LOG_FILE = HERE / "monitor.log"
 
 STORE_URL = "https://www.apple.com/ca/shop/refurbished/mac/macbook-pro"
