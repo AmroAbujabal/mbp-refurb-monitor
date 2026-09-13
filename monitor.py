@@ -11,6 +11,7 @@ import os
 import re
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime
@@ -66,14 +67,30 @@ def ssl_context():
         return ssl.create_default_context()  # system CAs (Linux, Homebrew python)
 
 
-def fetch(url=STORE_URL, timeout=30):
+# Apple takes the store offline for inventory updates and returns 503; observed
+# 2026-09-12. A maintenance blip should not look like a broken monitor.
+TRANSIENT_CODES = {408, 429, 500, 502, 503, 504}
+
+
+def fetch(url=STORE_URL, timeout=30, attempts=3):
     req = urllib.request.Request(url, headers={
         "User-Agent": UA,
         "Accept": "text/html,application/xhtml+xml",
         "Accept-Language": "en-CA,en;q=0.9",
     })
-    with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as resp:
-        return resp.read().decode("utf-8", "replace")
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as resp:
+                return resp.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as exc:
+            if exc.code not in TRANSIENT_CODES or attempt == attempts:
+                raise
+            log(f"WARN attempt {attempt}/{attempts}: HTTP {exc.code}, retrying")
+        except (urllib.error.URLError, OSError) as exc:
+            if attempt == attempts:
+                raise
+            log(f"WARN attempt {attempt}/{attempts}: {exc}, retrying")
+        time.sleep(5 * attempt)
 
 
 def normalize(text):

@@ -2,6 +2,7 @@
 """Self-check: python3 test_monitor.py  (no pytest needed)"""
 import ast
 import json
+import urllib.error
 import tempfile
 from pathlib import Path
 
@@ -80,6 +81,68 @@ def test_topic_never_reaches_the_log():
         for arg in node.args:
             src = ast.unparse(arg)
             assert "topic" not in src, f"log() call leaks the ntfy topic: {src}"
+
+
+def _fetch_raising(codes):
+    """Stub urlopen that raises the given HTTP codes in turn, then succeeds."""
+    calls = {"n": 0}
+
+    def fake_urlopen(req, **kw):
+        i = calls["n"]
+        calls["n"] += 1
+        if i < len(codes):
+            raise urllib.error.HTTPError("u", codes[i], "boom", {}, None)
+        raise RuntimeError("SUCCESS-SENTINEL")
+    return fake_urlopen, calls
+
+
+def test_fetch_retries_transient_then_succeeds(monkeypatched=None):
+    """A 503 (Apple's maintenance window) must be retried, not treated as fatal."""
+    saved_open, saved_sleep = monitor.urllib.request.urlopen, monitor.time.sleep
+    fake, calls = _fetch_raising([503, 503])
+    monitor.urllib.request.urlopen = fake
+    monitor.time.sleep = lambda s: None
+    try:
+        try:
+            monitor.fetch(attempts=3)
+        except RuntimeError as exc:
+            assert "SUCCESS-SENTINEL" in str(exc)
+        assert calls["n"] == 3, f"expected 2 retries then success, got {calls['n']} calls"
+    finally:
+        monitor.urllib.request.urlopen, monitor.time.sleep = saved_open, saved_sleep
+
+
+def test_fetch_does_not_retry_permanent_errors():
+    """A 404 means the page moved - retrying just delays a real ERROR."""
+    saved_open, saved_sleep = monitor.urllib.request.urlopen, monitor.time.sleep
+    fake, calls = _fetch_raising([404, 404, 404])
+    monitor.urllib.request.urlopen = fake
+    monitor.time.sleep = lambda s: None
+    try:
+        try:
+            monitor.fetch(attempts=3)
+            raise AssertionError("404 should have propagated")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 404
+        assert calls["n"] == 1, f"404 was retried {calls['n']} times, should be 1"
+    finally:
+        monitor.urllib.request.urlopen, monitor.time.sleep = saved_open, saved_sleep
+
+
+def test_fetch_gives_up_loudly_after_all_attempts():
+    saved_open, saved_sleep = monitor.urllib.request.urlopen, monitor.time.sleep
+    fake, calls = _fetch_raising([503, 503, 503])
+    monitor.urllib.request.urlopen = fake
+    monitor.time.sleep = lambda s: None
+    try:
+        try:
+            monitor.fetch(attempts=3)
+            raise AssertionError("persistent 503 should have propagated")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 503
+        assert calls["n"] == 3
+    finally:
+        monitor.urllib.request.urlopen, monitor.time.sleep = saved_open, saved_sleep
 
 
 class Harness:
