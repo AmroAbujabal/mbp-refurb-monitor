@@ -95,10 +95,20 @@ moved off this machine entirely.
    + force-push, and the docs now point at `config.env` instead of quoting it.
    **You must re-subscribe to the new topic.**
 
+11. Added retry for transient fetch failures — Apple returned 503 on 2026-09-12
+   (store offline for inventory updates), failing a scheduled run for what was a
+   maintenance blip. 408/429/5xx retry 3x with backoff; 404 still fails fast.
+12. **Measured GitHub's schedule throttling: 9 runs in 28h against `*/15`**, gaps
+   up to 4h59m. Added `PINGER.md` + `scripts/verify-pinger-token.sh` to drive the
+   workflow from cron-job.org on a real 15-min cadence.
+
 ## Not Tested / Known Gaps
 
-- GitHub's cron drift over days/weeks is unmeasured; only manual dispatches and
-  the first scheduled runs have been observed.
+- **The external pinger is NOT set up yet** — it needs a browser-created PAT and
+  a cron-job.org account, both of which only Amro can do. Steps are in
+  `PINGER.md`. Until then the cadence is GitHub's throttled ~2h.
+- The retry path is unit-tested but has not yet caught a real Apple 503 in
+  production.
 - **A real sub-$1900 listing has never been seen**, because none exists today. The
   path is proven only via a raised threshold.
 - Apple's anti-bot behaviour over days/weeks at a 15-min cadence is unknown. If

@@ -125,10 +125,20 @@ of repository inactivity.** A monitor that correctly finds nothing for months
 would commit nothing and silently switch itself off. The heartbeat prevents that
 and doubles as an at-a-glance "is it alive" signal.
 
+### The schedule is throttled - an external pinger does the real work
+
+Measured: **9 scheduled runs in 28 hours** against `cron: */15`, gaps up to
+4h59m. GitHub deprioritizes frequent schedules on free public repos and the cron
+value is a hint, not a contract. A cron-job.org job calls `workflow_dispatch`
+every 15 min instead; see `PINGER.md`. The built-in `schedule:` is kept as a
+fallback for when the pinger dies.
+
+If checks go quiet, suspect the pinger's token expiring before you suspect the
+code — that failure is silent.
+
 ### Caveats
 
-- GitHub's cron is best-effort and can drift 5-30 min under load. It is not a
-  precise 15-minute cadence.
+- GitHub's cron is best-effort and can drift or be dropped entirely.
 - A failed run emails you (default for the repo owner), which is the alerting
   path for "the monitor broke" — there is no other.
 - `gh workflow run` can dispatch against a stale ref right after a push; pass
