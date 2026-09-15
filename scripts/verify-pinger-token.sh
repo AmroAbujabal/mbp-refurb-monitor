@@ -34,14 +34,17 @@ fi
 echo "3. Can it trigger the workflow? (it must)"
 WID=$(curl -s -H "$H_ACCEPT" -H "$AUTH" -H "$H_VER" "$API/repos/$REPO/actions/workflows" \
       | python3 -c 'import json,sys; print(json.load(sys.stdin)["workflows"][0]["id"])')
-CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+RESP=$(curl -s -D - -o /dev/null -X POST \
   -H "$H_ACCEPT" -H "$AUTH" -H "$H_VER" -d '{"ref":"main"}' \
   "$API/repos/$REPO/actions/workflows/$WID/dispatches")
+CODE=$(printf '%s' "$RESP" | awk '/^HTTP/{c=$2} END{print c}')
+NEEDS=$(printf '%s' "$RESP" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-accepted-github-permissions"{print $2}')
 if [ "$CODE" = "204" ]; then
   echo "   OK: dispatch accepted (HTTP 204). A run should appear shortly."
 else
   echo "   FAIL: dispatch returned HTTP $CODE - the pinger will not work."
   if [ "$CODE" = "403" ] || [ "$CODE" = "404" ]; then
+    [ -n "$NEEDS" ] && echo "   GitHub says this endpoint requires: $NEEDS"
     echo "   Almost always: Actions is set to 'Read-only'. It must be 'Read and write'."
     echo "   (Read-only can list workflows but not trigger them, so step 3 is the"
     echo "    only check that catches it.)"
