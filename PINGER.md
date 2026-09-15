@@ -19,6 +19,13 @@ GitHub does not allow creating PATs via the API, so this part is manual.
    — this is the important part. Do **not** pick "All repositories".
 5. **Permissions:** Repository permissions → **Actions: Read and write**.
    Nothing else. Leave Contents at "No access".
+
+> The two settings people get wrong, both silent until step 3:
+> - leaving **Repository access** on *All repositories* (the default) — the token
+>   then reaches every repo you own
+> - choosing **Actions: Read-only** instead of *Read and write* — read-only can
+>   list workflows just fine and only fails at the moment it tries to dispatch,
+>   with `Resource not accessible by personal access token`
 6. Generate, copy the `github_pat_...` value.
 
 > Never use your `gh auth token` here. That one can reach every repo you own,
@@ -29,6 +36,9 @@ GitHub does not allow creating PATs via the API, so this part is manual.
 ```bash
 ./scripts/verify-pinger-token.sh github_pat_xxxxx
 ```
+
+Run this in your own terminal. Don't paste the token into a chat or an issue —
+anywhere it lands is somewhere it has to be rotated from later.
 
 It checks the token sees exactly **1** repo, **cannot** write file contents, and
 **can** dispatch the workflow. If it reports more than 1 repo, re-scope it before

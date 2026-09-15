@@ -41,6 +41,11 @@ if [ "$CODE" = "204" ]; then
   echo "   OK: dispatch accepted (HTTP 204). A run should appear shortly."
 else
   echo "   FAIL: dispatch returned HTTP $CODE - the pinger will not work."
+  if [ "$CODE" = "403" ] || [ "$CODE" = "404" ]; then
+    echo "   Almost always: Actions is set to 'Read-only'. It must be 'Read and write'."
+    echo "   (Read-only can list workflows but not trigger them, so step 3 is the"
+    echo "    only check that catches it.)"
+  fi
   exit 1
 fi
 echo
